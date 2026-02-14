@@ -1,9 +1,11 @@
 import openai
 from config import AI_API_KEY, AI_MODEL
 
+# Исправленный способ создания клиента для новых версий openai
 client = openai.OpenAI(
     api_key=AI_API_KEY,
     base_url="https://api.deepseek.com/v1"
+    # Убираем http_client и proxies - они больше не нужны!
 )
 
 DOCTOR_SYSTEM_PROMPT = """
@@ -17,13 +19,6 @@ DOCTOR_SYSTEM_PROMPT = """
 5. Разбивай текст на абзацы для удобства чтения
 6. Пиши дружелюбно и по-человечески
 7. Избегай шаблонных фраз и канцелярита
-
-Пример правильного ответа:
-"Здравствуйте! Судя по вашим симптомам, это похоже на обычную простуду. Температура 37.5 и насморк - типичные признаки ОРВИ.
-
-Попробуйте пить больше теплой жидкости, отдыхать и принимать витамин С. Если температура поднимется выше 38.5, можно выпить жаропонижающее.
-
-Обязательно покажитесь терапевту, если симптомы не пройдут через 3-4 дня. Выздоравливайте!"
 """
 
 async def get_ai_advice(user_message: str, conversation_history: list = None) -> str:
@@ -46,14 +41,13 @@ async def get_ai_advice(user_message: str, conversation_history: list = None) ->
         response = client.chat.completions.create(
             model=AI_MODEL,
             messages=messages,
-            temperature=0.8,  # Чуть выше для более естественной речи
-            top_p=0.9  # Добавляем для разнообразия речи
+            temperature=0.8
         )
         
         # Получаем ответ
         answer = response.choices[0].message.content
         
-        # Дополнительная очистка от звездочек (на всякий случай)
+        # Дополнительная очистка от звездочек
         answer = answer.replace('*', '')
         answer = answer.replace('**', '')
         answer = answer.replace('__', '')
