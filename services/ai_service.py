@@ -1,9 +1,17 @@
 import openai
+import logging
+import asyncio
 from config import AI_API_KEY, AI_MODEL
 
+# Настройка логирования
+logger = logging.getLogger(__name__)
+
+# Инициализация клиента DeepSeek
 client = openai.OpenAI(
     api_key=AI_API_KEY,
-    base_url="https://api.deepseek.com/v1"
+    base_url="https://api.deepseek.com/v1",
+    timeout=60.0,  # Увеличиваем таймаут
+    max_retries=3  # Добавляем повторные попытки
 )
 
 DOCTOR_SYSTEM_PROMPT = """
@@ -43,22 +51,48 @@ async def get_ai_advice(user_message: str, conversation_history: list = None) ->
     messages.append({"role": "user", "content": user_message})
     
     try:
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            messages=messages,
-            temperature=0.8,  # Чуть выше для более естественной речи
-            top_p=0.9  # Добавляем для разнообразия речи
+        logger.info(f"Отправка запроса в DeepSeek API. Длина сообщения: {len(user_message)}")
+        
+        # Используем run_in_executor для асинхронного вызова
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.chat.completions.create(
+                model=AI_MODEL,
+                messages=messages,
+                temperature=0.8,
+                top_p=0.9,
+                max_tokens=1000  # Добавляем ограничение на длину ответа
+            )
         )
         
         # Получаем ответ
         answer = response.choices[0].message.content
         
-        # Дополнительная очистка от звездочек (на всякий случай)
+        # Очистка от звездочек
         answer = answer.replace('*', '')
         answer = answer.replace('**', '')
         answer = answer.replace('__', '')
         
+        logger.info(f"Получен ответ от DeepSeek, длина: {len(answer)} символов")
         return answer
         
+    except openai.APIConnectionError as e:
+        logger.error(f"Ошибка подключения к DeepSeek API: {e}")
+        return "Извините, проблема с подключением к серверу. Проверьте интернет-соединение и попробуйте позже."
+        
+    except openai.APITimeoutError as e:
+        logger.error(f"Таймаут DeepSeek API: {e}")
+        return "Извините, сервер не отвечает. Попробуйте повторить запрос через минуту."
+        
+    except openai.AuthenticationError as e:
+        logger.error(f"Ошибка аутентификации DeepSeek: {e}")
+        return "Извините, проблема с API ключом. Пожалуйста, обратитесь к администратору."
+        
+    except openai.RateLimitError as e:
+        logger.error(f"Превышен лимит запросов: {e}")
+        return "Извините, слишком много запросов. Подождите немного и попробуйте снова."
+        
     except Exception as e:
-        return f"Извините, ошибка: {e}"
+        logger.error(f"Неожиданная ошибка в get_ai_advice: {e}")
+        return f"Извините, ошибка: {str(e)}"
