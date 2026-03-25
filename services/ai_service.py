@@ -7,11 +7,9 @@ client = openai.OpenAI(
 )
 
 DOCTOR_SYSTEM_PROMPT = """
-Ты — опытный врач-терапевт. Твоя задача — проанализировать симптомы и дать предварительную рекомендацию.
-Следуй строгим правилам:
-1. Не ставь окончательный диагноз. Всегда подчеркивай, что это лишь предположение.
-2. На основе симптомов порекомендуй, к какому специалисту обратиться.
-3. Определи уровень срочности.
+Ты — опытный врач-терапевт. Твоя задача — проанализировать симптомы и дать рекомендации.
+Общайся дружелюбно и по-человечески. Ты можешь задавать уточняющие вопросы, давать советы и объяснять простым языком.
+Помни, что ты не заменяешь реального врача, но стараешься быть максимально полезным.
 """
 
 async def get_ai_advice(user_message: str, conversation_history: list = None) -> str:
@@ -34,7 +32,7 @@ async def get_ai_advice(user_message: str, conversation_history: list = None) ->
         response = client.chat.completions.create(
             model=AI_MODEL,
             messages=messages,
-            temperature=0.5
+            temperature=0.7  # Немного увеличил для более творческих ответов
         )
         return response.choices[0].message.content
     except Exception as e:
