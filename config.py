@@ -1,20 +1,22 @@
 import os
 from dotenv import load_dotenv
 
-# Загружаем переменные из .env файла
+# Загружаем переменные из файла .env
 load_dotenv()
 
-# Токен бота
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+# Сохраняем их в переменные, чтобы использовать в других файлах
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+AI_API_KEY = os.getenv('AI_API_KEY')
+AI_MODEL = os.getenv('AI_MODEL')
 
-# API ключ DeepSeek
-AI_API_KEY = os.getenv("DEEPSEEK_API_KEY", "YOUR_DEEPSEEK_KEY_HERE")
+# Настройки подписки
+SUBSCRIPTION_ENABLED = os.getenv('SUBSCRIPTION_ENABLED', 'False').lower() == 'true'
+SUBSCRIPTION_PRICE_STARS = int(os.getenv('SUBSCRIPTION_PRICE_STARS', '100'))
+SUBSCRIPTION_DAYS = int(os.getenv('SUBSCRIPTION_DAYS', '30'))
 
-# Модель DeepSeek
-AI_MODEL = os.getenv("AI_MODEL", "deepseek-chat")  # или "deepseek-coder"
+# ЮKassa
+YOOKASSA_SHOP_ID = os.getenv('YOOKASSA_SHOP_ID')
+YOOKASSA_SECRET_KEY = os.getenv('YOOKASSA_SECRET_KEY')
 
-# Для отладки
-print(f"Конфигурация загружена:")
-print(f"BOT_TOKEN: {BOT_TOKEN[:15]}..." if BOT_TOKEN != "YOUR_BOT_TOKEN_HERE" else "BOT_TOKEN не установлен!")
-print(f"AI_API_KEY: {AI_API_KEY[:10]}..." if AI_API_KEY != "YOUR_DEEPSEEK_KEY_HERE" else "AI_API_KEY не установлен!")
-print(f"AI_MODEL: {AI_MODEL}")
+# ID администраторов (можно несколько, через запятую)
+ADMIN_IDS = [int(id.strip()) for id in os.getenv('ADMIN_IDS', '').split(',') if id.strip()]
