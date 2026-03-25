@@ -34,7 +34,10 @@ async def handle_message(message: Message):
     # Получаем историю
     history = user_conversation_history[user_id]
     
-    # Сразу отправляем в AI (без "Анализирую...")
+    # 👇 ПОКАЗЫВАЕМ, ЧТО БОТ ПЕЧАТАЕТ (как человек)
+    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+    
+    # Отправляем в AI
     advice = await get_ai_advice(
         user_message=user_message,
         conversation_history=history[-5:]
