@@ -1,7 +1,7 @@
 import openai
 from config import AI_API_KEY, AI_MODEL
 
-# ПРОСТЕЙШАЯ ВЕРСИЯ - ничего лишнего!
+# САМАЯ ПРОСТАЯ ВЕРСИЯ - БЕЗ ВСЯКОГО ЛИШНЕГО
 client = openai.OpenAI(
     api_key=AI_API_KEY,
     base_url="https://api.deepseek.com/v1"
@@ -9,7 +9,7 @@ client = openai.OpenAI(
 
 DOCTOR_SYSTEM_PROMPT = """
 Ты — опытный врач-терапевт. Твоя задача — анализировать симптомы и давать рекомендации.
-Пиши обычным текстом, без звездочек и специального форматирования.
+Пиши обычным текстом, без звездочек.
 """
 
 async def get_ai_advice(user_message: str, conversation_history: list = None) -> str:
