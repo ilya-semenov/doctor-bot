@@ -34,9 +34,7 @@ async def handle_message(message: Message):
     # Получаем историю
     history = user_conversation_history[user_id]
     
-    await message.answer("🧑‍⚕️ Анализирую...")
-    
-    # Отправляем в AI
+    # Сразу отправляем в AI (без "Анализирую...")
     advice = await get_ai_advice(
         user_message=user_message,
         conversation_history=history[-5:]
