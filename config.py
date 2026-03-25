@@ -9,14 +9,7 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 AI_API_KEY = os.getenv('AI_API_KEY')
 AI_MODEL = os.getenv('AI_MODEL')
 
-# Настройки подписки
+# Настройки подписки (опционально)
 SUBSCRIPTION_ENABLED = os.getenv('SUBSCRIPTION_ENABLED', 'False').lower() == 'true'
-SUBSCRIPTION_PRICE_STARS = int(os.getenv('SUBSCRIPTION_PRICE_STARS', '100'))
-SUBSCRIPTION_DAYS = int(os.getenv('SUBSCRIPTION_DAYS', '30'))
-
-# ЮKassa
-YOOKASSA_SHOP_ID = os.getenv('YOOKASSA_SHOP_ID')
-YOOKASSA_SECRET_KEY = os.getenv('YOOKASSA_SECRET_KEY')
-
-# ID администраторов (можно несколько, через запятую)
-ADMIN_IDS = [int(id.strip()) for id in os.getenv('ADMIN_IDS', '').split(',') if id.strip()]
+SUBSCRIPTION_PRICE_STARS = int(os.getenv('SUBSCRIPTION_PRICE_STARS', '100'))  # Цена в Stars
+SUBSCRIPTION_DAYS = int(os.getenv('SUBSCRIPTION_DAYS', '30'))  # Дней подписки
