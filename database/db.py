@@ -26,7 +26,7 @@ def init_db():
         )
     ''')
     
-    # Таблица платежей (расширенная)
+    # Таблица платежей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,13 +35,12 @@ def init_db():
             currency TEXT,
             payment_method TEXT,
             payment_id TEXT,
-            status TEXT DEFAULT 'completed',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
     ''')
     
-    # Таблица для админ-логов (опционально)
+    # Таблица для админ-логов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS admin_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,8 +54,135 @@ def init_db():
     
     conn.commit()
     conn.close()
+    print("✅ База данных инициализирована")
 
-# ... (предыдущие функции get_or_create_user, update_last_active и т.д. остаются)
+def get_or_create_user(user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> Dict:
+    """Получает пользователя или создает нового"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        cursor.execute('''
+            INSERT INTO users (user_id, username, first_name, last_name, subscription_status)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, username, first_name, last_name, 'inactive'))
+        conn.commit()
+        
+        cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+        user = cursor.fetchone()
+    
+    conn.close()
+    
+    return {
+        'user_id': user[0],
+        'username': user[1],
+        'first_name': user[2],
+        'last_name': user[3],
+        'first_seen': user[4],
+        'last_active': user[5],
+        'subscription_end': user[6],
+        'subscription_status': user[7],
+        'notified_3days': user[8],
+        'total_donations': user[9]
+    }
+
+def update_last_active(user_id: int):
+    """Обновляет время последней активности"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE user_id = ?',
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+
+def get_subscription(user_id: int) -> Dict:
+    """Получить информацию о подписке пользователя"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'SELECT subscription_end, subscription_status FROM users WHERE user_id = ?',
+        (user_id,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    
+    if result and result[0]:
+        end_date = datetime.fromisoformat(result[0])
+        if end_date > datetime.now():
+            return {
+                'active': True,
+                'end_date': end_date,
+                'status': 'active',
+                'days_left': (end_date - datetime.now()).days
+            }
+        else:
+            return {
+                'active': False,
+                'end_date': end_date,
+                'status': 'expired',
+                'days_left': 0
+            }
+    
+    return {'active': False, 'end_date': None, 'status': 'inactive', 'days_left': 0}
+
+def set_subscription(user_id: int, days: int, amount: int = None, payment_id: str = None) -> datetime:
+    """Установить/продлить подписку на N дней"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Получаем текущую дату окончания
+    cursor.execute('SELECT subscription_end FROM users WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    
+    if result and result[0]:
+        current_end = datetime.fromisoformat(result[0])
+        if current_end > datetime.now():
+            new_end = current_end + timedelta(days=days)
+        else:
+            new_end = datetime.now() + timedelta(days=days)
+    else:
+        new_end = datetime.now() + timedelta(days=days)
+    
+    cursor.execute('''
+        UPDATE users 
+        SET subscription_end = ?, subscription_status = 'active', notified_3days = 0
+        WHERE user_id = ?
+    ''', (new_end.isoformat(), user_id))
+    
+    # Если есть сумма платежа, обновляем total_donations
+    if amount:
+        cursor.execute(
+            'UPDATE users SET total_donations = total_donations + ? WHERE user_id = ?',
+            (amount, user_id)
+        )
+    
+    # Сохраняем платеж
+    if payment_id and amount:
+        cursor.execute('''
+            INSERT INTO payments (user_id, amount, currency, payment_method, payment_id)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, amount, 'XTR', 'telegram_stars', payment_id))
+    
+    conn.commit()
+    conn.close()
+    return new_end
+
+def save_payment(user_id: int, amount: int, currency: str, payment_method: str, payment_id: str):
+    """Сохраняет информацию о платеже"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO payments (user_id, amount, currency, payment_method, payment_id)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, amount, currency, payment_method, payment_id))
+    conn.commit()
+    conn.close()
 
 def get_all_payments(limit: int = 100, offset: int = 0) -> List[Dict]:
     """Получить все платежи с информацией о пользователях"""
@@ -107,7 +233,6 @@ def get_payments_stats(days: int = 30) -> Dict:
     
     since = (datetime.now() - timedelta(days=days)).isoformat()
     
-    # Общая статистика
     cursor.execute('''
         SELECT 
             COUNT(*) as total_count,
@@ -119,20 +244,6 @@ def get_payments_stats(days: int = 30) -> Dict:
     
     total_stats = cursor.fetchone()
     
-    # Статистика по способам оплаты
-    cursor.execute('''
-        SELECT 
-            payment_method,
-            COUNT(*) as count,
-            SUM(amount) as total
-        FROM payments
-        WHERE created_at >= ?
-        GROUP BY payment_method
-    ''', (since,))
-    
-    method_stats = cursor.fetchall()
-    
-    # Статистика по дням
     cursor.execute('''
         SELECT 
             DATE(created_at) as day,
@@ -153,7 +264,6 @@ def get_payments_stats(days: int = 30) -> Dict:
         'total_count': total_stats[0] or 0,
         'total_amount': total_stats[1] or 0,
         'unique_users': total_stats[2] or 0,
-        'by_method': [{'method': row[0], 'count': row[1], 'total': row[2]} for row in method_stats],
         'by_day': [{'day': row[0], 'count': row[1], 'total': row[2]} for row in daily_stats]
     }
 
@@ -280,11 +390,9 @@ def get_user_by_username_or_id(search: str) -> Optional[Dict]:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Пробуем найти по ID
     if search.isdigit():
         cursor.execute('SELECT * FROM users WHERE user_id = ?', (int(search),))
     else:
-        # Убираем @ если есть
         username = search.lstrip('@')
         cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
     
@@ -318,3 +426,128 @@ def manual_set_subscription(user_id: int, days: int, admin_id: int = None) -> da
         )
     
     return new_end
+
+# Функции для рассылки
+def get_all_users_for_mailing(only_subscribers: bool = False, only_donors: bool = False) -> List[int]:
+    """Получает список пользователей для рассылки"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    if only_subscribers:
+        cursor.execute('''
+            SELECT user_id FROM users 
+            WHERE subscription_status = 'active' 
+            AND subscription_end > datetime('now')
+        ''')
+    elif only_donors:
+        cursor.execute('''
+            SELECT user_id FROM users 
+            WHERE total_donations > 0
+        ''')
+    else:
+        cursor.execute('SELECT user_id FROM users')
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [row[0] for row in rows]
+
+def get_users_count() -> Dict:
+    """Получает статистику по пользователям"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT COUNT(*) FROM users')
+    total = cursor.fetchone()[0]
+    
+    cursor.execute('''
+        SELECT COUNT(*) FROM users 
+        WHERE subscription_status = 'active' 
+        AND subscription_end > datetime('now')
+    ''')
+    subscribers = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(*) FROM users WHERE total_donations > 0')
+    donors = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    return {
+        'total': total,
+        'subscribers': subscribers,
+        'donors': donors
+    }
+
+def save_mailing_log(admin_id: int, recipient_count: int, message_text: str, target_group: str):
+    """Сохраняет лог рассылки"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO admin_logs (admin_id, action, details)
+        VALUES (?, ?, ?)
+    ''', (admin_id, 'mailing', f'Group: {target_group}, Recipients: {recipient_count}, Message: {message_text[:100]}'))
+    
+    conn.commit()
+    conn.close()
+
+def get_expiring_subscriptions(days: int = 3) -> List[tuple]:
+    """Получает пользователей с истекающей подпиской"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    three_days_later = (datetime.now() + timedelta(days=days)).isoformat()
+    cursor.execute('''
+        SELECT user_id, subscription_end 
+        FROM users 
+        WHERE subscription_end IS NOT NULL 
+        AND subscription_end <= ? 
+        AND subscription_end > ?
+        AND notified_3days = 0
+        AND subscription_status = 'active'
+    ''', (three_days_later, datetime.now().isoformat()))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [(row[0], datetime.fromisoformat(row[1])) for row in rows]
+
+def mark_notified(user_id: int):
+    """Отмечает, что уведомление отправлено"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE users SET notified_3days = 1 WHERE user_id = ?',
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+
+def get_expired_subscriptions() -> List[int]:
+    """Получает только что истекшие подписки"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT user_id 
+        FROM users 
+        WHERE subscription_end IS NOT NULL 
+        AND subscription_end <= ? 
+        AND subscription_status = 'active'
+    ''', (datetime.now().isoformat(),))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [row[0] for row in rows]
+
+def set_status_expired(user_id: int):
+    """Устанавливает статус expired"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE users SET subscription_status = ? WHERE user_id = ?',
+        ('expired', user_id)
+    )
+    conn.commit()
+    conn.close()
