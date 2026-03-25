@@ -8,7 +8,6 @@ from config import BOT_TOKEN
 from services.ai_service import get_ai_advice
 from database.db import init_db, get_or_create_user, update_last_active, get_subscription
 from keyboards import main_menu
-from handlers import admin as admin_router
 from handlers import subscription as subscription_router
 
 bot = Bot(token=BOT_TOKEN)
@@ -16,7 +15,7 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # Подключаем роутер подписки
 dp.include_router(subscription_router.router)
-dp.include_router(admin_router.router)
+
 # Хранилище истории для каждого пользователя
 user_conversation_history = {}
 
