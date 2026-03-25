@@ -70,3 +70,15 @@ def back_to_admin_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад в админку", callback_data="admin_back")]
     ])
+
+# Клавиатура для благодарности после оплаты
+def thanks_keyboard():
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🩺 Задать вопрос врачу")],
+            [KeyboardButton(text="💎 Поддержать проект")],
+            [KeyboardButton(text="ℹ️ О боте")]
+        ],
+        resize_keyboard=True
+    )
+    return keyboard
